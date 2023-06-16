@@ -1,0 +1,14 @@
+{
+    "name": "ZBase.Foundation.PolymorphicStructs",
+    "rootNamespace": "ZBase.Foundation.PolymorphicStructs",
+    "references": [],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

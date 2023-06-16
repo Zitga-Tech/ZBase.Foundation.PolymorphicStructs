@@ -1,0 +1,16 @@
+{
+    "name": "PolymorphicStructs.Samples",
+    "rootNamespace": "PolymorphicStructs.Samples",
+    "references": [
+        "ZBase.Foundation.PolymorphicStructs"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
