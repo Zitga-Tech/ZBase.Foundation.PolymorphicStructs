@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
-using System.Linq;
+using System.Text;
 using System.Threading;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -10,12 +10,20 @@ using ZBase.Foundation.SourceGen;
 
 namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
 {
+    using StructMap = Dictionary<INamedTypeSymbol, StructRef>;
+    using InterfaceMap = ImmutableDictionary<ISymbol, InterfaceRef>;
+    using InterfaceToStructMap = Dictionary<INamedTypeSymbol, Dictionary<INamedTypeSymbol, StructRef>>;
+
     [Generator]
-    public class PolymorphicStructGenerator : IIncrementalGenerator
+    public partial class PolymorphicStructGenerator : IIncrementalGenerator
     {
         public const string GENERATOR_NAME = nameof(PolymorphicStructGenerator);
         public const string POLY_INTERFACE_ATTRIBUTE = "global::ZBase.Foundation.PolymorphicStructs.PolymorphicStructInterfaceAttribute";
         public const string POLY_STRUCT_ATTRIBUTE = "global::ZBase.Foundation.PolymorphicStructs.PolymorphicStructAttribute";
+
+        private const string AGGRESSIVE_INLINING = "[global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]";
+        private const string GENERATED_CODE = "[global::System.CodeDom.Compiler.GeneratedCode(\"ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen.PolymorphicStructGenerator\", \"1.0.0\")]";
+        private const string EXCLUDE_COVERAGE = "[global::System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]";
 
         public void Initialize(IncrementalGeneratorInitializationContext context)
         {
@@ -24,12 +32,12 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
             var interfaceRefProvider = context.SyntaxProvider.CreateSyntaxProvider(
                 predicate: IsValidInterfaceSyntax,
                 transform: GetInterfaceRefSemanticMatch
-            ).Where(static t => t is { });
+            ).Where(static t => t.syntax is { } && t.symbol is { });
 
             var structRefProvider = context.SyntaxProvider.CreateSyntaxProvider(
                 predicate: IsValidStructSyntax,
                 transform: GetStructRefSemanticMatch
-            ).Where(static t => t is { });
+            ).Where(static t => t.syntax is { } && t.symbol is { });
 
             var combined = interfaceRefProvider.Collect()
                 .Combine(structRefProvider.Collect())
@@ -55,7 +63,7 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
                 && syntax.HasAttributeCandidate("ZBase.Foundation.PolymorphicStructs", "PolymorphicStructInterface");
         }
 
-        public static INamedTypeSymbol GetInterfaceRefSemanticMatch(
+        public static (InterfaceDeclarationSyntax syntax, INamedTypeSymbol symbol) GetInterfaceRefSemanticMatch(
               GeneratorSyntaxContext context
             , CancellationToken token
         )
@@ -64,7 +72,7 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
                 || context.Node is not InterfaceDeclarationSyntax syntax
             )
             {
-                return null;
+                return (null, null);
             }
 
             var semanticModel = context.SemanticModel;
@@ -72,10 +80,10 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
 
             if (symbol.HasAttribute(POLY_INTERFACE_ATTRIBUTE))
             {
-                return symbol;
+                return (syntax, symbol);
             }
 
-            return null;
+            return (null, null);
         }
 
         private static bool IsValidStructSyntax(SyntaxNode node, CancellationToken _)
@@ -85,11 +93,10 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
                 && syntax.HasAttributeCandidate("ZBase.Foundation.PolymorphicStructs", "PolymorphicStruct")
                 && syntax.BaseList != null
                 && syntax.BaseList.Types.Count > 0
-                && syntax.BaseList.Types.Any(x => x.HasAttributeCandidate("ZBase.Foundation.PolymorphicStructs", "PolymorphicStructInterface"))
                 ;
         }
 
-        public static INamedTypeSymbol GetStructRefSemanticMatch(
+        public static (StructDeclarationSyntax syntax, INamedTypeSymbol symbol) GetStructRefSemanticMatch(
               GeneratorSyntaxContext context
             , CancellationToken token
         )
@@ -100,7 +107,7 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
                 || syntax.BaseList.Types.Count < 1
             )
             {
-                return null;
+                return (null, null);
             }
 
             var semanticModel = context.SemanticModel;
@@ -108,64 +115,245 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
 
             if (symbol.HasAttribute(POLY_STRUCT_ATTRIBUTE) == false)
             {
-                return null;
+                return (null, null);
             }
 
-            foreach (var item in symbol.Interfaces)
+            foreach (var item in symbol.AllInterfaces)
             {
                 if (item.HasAttribute(POLY_INTERFACE_ATTRIBUTE))
                 {
-                    return symbol;
+                    return (syntax, symbol);
                 }
             }
 
-            return null;
+            return (null, null);
         }
 
         private static void GenerateOutput(
               SourceProductionContext context
             , Compilation compilation
-            , ImmutableArray<INamedTypeSymbol> interfaces
-            , ImmutableArray<INamedTypeSymbol> structs
+            , ImmutableArray<(InterfaceDeclarationSyntax syntax, INamedTypeSymbol symbol)> interfaces
+            , ImmutableArray<(StructDeclarationSyntax syntax, INamedTypeSymbol symbol)> structs
             , string projectPath
             , bool outputSourceGenFiles
         )
         {
-            if (interfaces.Length < 1)
+            context.CancellationToken.ThrowIfCancellationRequested();
+
+            SourceGenHelpers.ProjectPath = projectPath;
+
+            BuildMaps(
+                  context
+                , interfaces
+                , structs
+                , out var interfaceMap
+                , out var interfaceToStructMap
+                , out var structRefs
+                , out var count
+            );
+
+            if (count < 1)
             {
                 return;
             }
 
-            context.CancellationToken.ThrowIfCancellationRequested();
+            var mergedFieldRefPool = new Queue<MergedFieldRef>(count);
+            var mergedFieldRefList = new List<MergedFieldRef>(count);
+            var sb = new StringBuilder();
 
-            var interfaceSet = interfaces.ToImmutableHashSet(SymbolEqualityComparer.Default);
-            var structMap = new Dictionary<INamedTypeSymbol, HashSet<INamedTypeSymbol>>(SymbolEqualityComparer.Default);
-            
-            foreach (var item in structs)
+            foreach (var kv in interfaceToStructMap)
             {
-                var baseType = item.BaseType;
+                BuildMergedFieldRefList(kv.Value, mergedFieldRefList, mergedFieldRefPool);
 
-                while (baseType != null)
+                if (mergedFieldRefList.Count < 1)
                 {
-                    if (interfaceSet.Contains(baseType))
-                    {
-                        if (structMap.TryGetValue(baseType, out var set) == false)
-                        {
-                            set = new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default);
-                            structMap[baseType] = set;
-                        }
+                    continue;
+                }
 
-                        set.Add(item);
+                if (interfaceMap.TryGetValue(kv.Key, out var interfaceRef))
+                {
+                    GenerateMergedStruct(
+                          context
+                        , compilation
+                        , outputSourceGenFiles
+                        , interfaceRef
+                        , kv.Value.Values
+                        , (ulong)kv.Value.Count
+                        , mergedFieldRefList
+                        , sb
+                    );
+                }
+
+                ClearToPool(mergedFieldRefList, mergedFieldRefPool);
+            }
+
+            GenerateStructs(
+                  context
+                , compilation
+                , outputSourceGenFiles
+                , structRefs
+            );
+        }
+
+        private static void BuildMaps(
+              SourceProductionContext context
+            , ImmutableArray<(InterfaceDeclarationSyntax syntax, INamedTypeSymbol symbol)> interfaces
+            , ImmutableArray<(StructDeclarationSyntax syntax, INamedTypeSymbol symbol)> structs
+            , out InterfaceMap interfaceMap
+            , out InterfaceToStructMap interfaceToStructMap
+            , out ImmutableArray<StructRef> structRefs
+            , out int maxStructCount
+        )
+        {
+            interfaceMap = interfaces.ToImmutableDictionary(
+                  keySelector: static x => x.symbol
+                , elementSelector: static x => new InterfaceRef(x.syntax, x.symbol)
+                , SymbolEqualityComparer.Default
+            );
+
+            interfaceToStructMap = new InterfaceToStructMap(
+                SymbolEqualityComparer.Default
+            );
+
+            maxStructCount = 0;
+
+            using var structRefArrayBuilder = ImmutableArrayBuilder<StructRef>.Rent();
+
+            foreach (var (syntax, symbol) in structs)
+            {
+                StructRef structRef = null;
+
+                foreach (var @interface in symbol.AllInterfaces)
+                {
+                    if (interfaceMap.TryGetValue(@interface, out var interfaceRef) == false)
+                    {
+                        continue;
                     }
 
-                    baseType = baseType.BaseType;
+                    if (interfaceToStructMap.TryGetValue(@interface, out var structMap) == false)
+                    {
+                        structMap = new(SymbolEqualityComparer.Default);
+                        interfaceToStructMap[@interface] = structMap;
+                    }
+
+                    if (structRef == null)
+                    {
+                        try
+                        {
+                            structRef = new StructRef(syntax, symbol);
+                            structRefArrayBuilder.Add(structRef);
+                        }
+                        catch (Exception e)
+                        {
+                            context.ReportDiagnostic(Diagnostic.Create(
+                                  s_errorDescriptor_1
+                                , syntax.GetLocation()
+                                , e.ToUnityPrintableString()
+                            ));
+                        }
+                    }
+
+                    if (structRef.Interfaces.ContainsKey(@interface) == false)
+                    {
+                        structRef.Interfaces.Add(@interface, interfaceRef);
+                    }
+
+                    structMap.Add(symbol, structRef);
+
+                    if (maxStructCount < structMap.Count)
+                    {
+                        maxStructCount = structMap.Count;
+                    }
                 }
             }
 
-
+            structRefs = structRefArrayBuilder.ToImmutable();
         }
 
-        private static readonly DiagnosticDescriptor s_errorDescriptor
+        private static void BuildMergedFieldRefList(
+              StructMap structMap
+            , List<MergedFieldRef> list
+            , Queue<MergedFieldRef> pool
+        )
+        {
+            var usedIndexesInList = new HashSet<int>();
+
+            foreach (var kv in structMap)
+            {
+                usedIndexesInList.Clear();
+
+                var structSymbol = kv.Key;
+                var fields = kv.Value.Fields;
+
+                for (int fieldIndex = 0; fieldIndex < fields.Length; fieldIndex++)
+                {
+                    var field = fields[fieldIndex];
+                    var matchingListIndex = -1;
+
+                    for (int listIndex = 0; listIndex < list.Count; listIndex++)
+                    {
+                        if (usedIndexesInList.Contains(listIndex) == false)
+                        {
+                            if (SymbolEqualityComparer.Default.Equals(field.Type, list[listIndex].Type))
+                            {
+                                matchingListIndex = listIndex;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (matchingListIndex < 0)
+                    {
+                        int newListIndex = list.Count;
+                        MergedFieldRef mergedField;
+
+                        if (pool.Count > 0)
+                        {
+                            mergedField = pool.Dequeue();
+                        }
+                        else
+                        {
+                            mergedField = new MergedFieldRef();
+                        }
+
+                        mergedField.Type = field.Type;
+                        mergedField.Name = $"Field_{field.Type.ToValidIdentifier()}_{newListIndex}";
+                        mergedField.StructToFieldMap.Add(structSymbol, field.Name);
+
+                        field.MergedName = mergedField.Name;
+
+                        list.Add(mergedField);
+                        usedIndexesInList.Add(newListIndex);
+                    }
+                    else
+                    {
+                        var mergedField = list[matchingListIndex];
+                        field.MergedName = mergedField.Name;
+
+                        mergedField.StructToFieldMap.Add(structSymbol, field.Name);
+                        usedIndexesInList.Add(matchingListIndex);
+                    }
+                }
+            }
+        }
+
+        private static void ClearToPool(List<MergedFieldRef> list, Queue<MergedFieldRef> pool)
+        {
+            for (var i = list.Count - 1; i >= 0; i--)
+            {
+                var item = list[i];
+                item.Type = default;
+                item.Name = default;
+                item.StructToFieldMap.Clear();
+
+                list.RemoveAt(i);
+                pool.Enqueue(item);
+            }
+
+            list.Clear();
+        }
+
+        private static readonly DiagnosticDescriptor s_errorDescriptor_1
             = new("SG_POLYMORPHIC_STRUCT_01"
                 , "Polymorphic Struct Generator Error"
                 , "This error indicates a bug in the Polymorphic Struct source generators. Error message: '{0}'."

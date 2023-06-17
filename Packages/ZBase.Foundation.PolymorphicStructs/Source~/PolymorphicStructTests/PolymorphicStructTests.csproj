@@ -16,10 +16,6 @@
     </PropertyGroup>
 
     <ItemGroup>
-      <PackageReference Include="Unity3D" Version="2.1.2" />
-    </ItemGroup>
-
-    <ItemGroup>
         <ProjectReference Include="../ZBase.Foundation.PolymorphicStructs/ZBase.Foundation.PolymorphicStructs.csproj" />
         <ProjectReference Include="../ZBase.Foundation.PolymorphicStructs.SourceGen/ZBase.Foundation.PolymorphicStructs.SourceGen.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
     </ItemGroup>
