@@ -149,4 +149,24 @@ namespace PolymorphicStructs.Samples
             }
         }
     }
+
+    [PolymorphicStructInterface]
+    public interface IAnimationEvent
+    {
+        void Invoke();
+    }
+
+    [PolymorphicStruct]
+    public partial struct AnimationAttackEvent : IAnimationEvent
+    {
+        public int a;
+
+        public void Invoke() { }
+    }
+
+    [PolymorphicStruct]
+    public partial struct AnimationWalkEvent : IAnimationEvent
+    {
+        public void Invoke() { }
+    }
 }

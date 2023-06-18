@@ -145,16 +145,21 @@ namespace PolymorphicStructTests
         }
     }
 
-    partial struct MyStateStruct
+    [PolymorphicStructInterface]
+    public interface IAnimationEvent
     {
-        //static MyStateStruct()
-        //{
-        //    TypeId<StateA>.Id = 5;
-        //}
+        void Invoke();
+    }
 
-        //private struct TypeId<T>
-        //{
-        //    public static int Id;
-        //}
+    [PolymorphicStruct]
+    public partial struct AnimationAttackEvent : IAnimationEvent
+    {
+        public void Invoke() { }
+    }
+
+    [PolymorphicStruct]
+    public partial struct AnimationWalkEvent : IAnimationEvent
+    {
+        public void Invoke() { }
     }
 }

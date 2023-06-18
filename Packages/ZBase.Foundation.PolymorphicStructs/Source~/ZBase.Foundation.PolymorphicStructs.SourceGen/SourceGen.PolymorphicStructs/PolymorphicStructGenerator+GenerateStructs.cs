@@ -92,12 +92,17 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
             , StructRef structRef
         )
         {
+            var fields = structRef.Fields;
+
+            if (fields.Length < 1)
+            {
+                return;
+            }
+
             p.PrintLine(GENERATED_CODE).PrintLine(EXCLUDE_COVERAGE);
             p.PrintLine($"public {structRef.Syntax.Identifier.Text}(");
             p = p.IncreasedIndent();
             {
-                var fields = structRef.Fields;
-
                 for (var i = 0; i < fields.Length; i++)
                 {
                     var field = fields[i];
@@ -129,21 +134,28 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
             p.PrintLine($"public static implicit operator {structRef.Syntax.Identifier.Text}(in {interfaceRef.FullContainingNameWithDot}{interfaceRef.StructName} value)");
             p.OpenScope();
             {
-                p.PrintLine($"return new {structRef.Syntax.Identifier.Text}(");
-                p = p.IncreasedIndent();
+                var fields = structRef.Fields;
+
+                if (fields.Length < 1)
                 {
-                    var fields = structRef.Fields;
-
-                    for (var i = 0; i < fields.Length; i++)
-                    {
-                        var field = fields[i];
-                        var comma = i > 0 ? ", " : "  ";
-
-                        p.PrintLine($"{comma}value.{field.MergedName}");
-                    }
+                    p.PrintLine($"return new {structRef.Syntax.Identifier.Text}();");
                 }
-                p = p.DecreasedIndent();
-                p.PrintLine(");");
+                else
+                {
+                    p.PrintLine($"return new {structRef.Syntax.Identifier.Text}(");
+                    p = p.IncreasedIndent();
+                    {
+                        for (var i = 0; i < fields.Length; i++)
+                        {
+                            var field = fields[i];
+                            var comma = i > 0 ? ", " : "  ";
+
+                            p.PrintLine($"{comma}value.{field.MergedName}");
+                        }
+                    }
+                    p = p.DecreasedIndent();
+                    p.PrintLine(");");
+                }
             }
             p.CloseScope();
             p.PrintEndLine();
@@ -162,20 +174,27 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
             p.PrintLine($"public static implicit operator {mergedStructName}({@in}{structRef.Syntax.Identifier.Text} value)");
             p.OpenScope();
             {
-                p.PrintLine($"return new {mergedStructName} {{");
-                p = p.IncreasedIndent();
+                var fields = structRef.Fields;
+
+                if (fields.Length < 1)
                 {
-                    p.PrintLine($"CurrentTypeId = {mergedStructName}.TypeId.{structRef.Symbol.ToValidIdentifier()},");
-
-                    var fields = structRef.Fields;
-
-                    foreach (var field in fields)
-                    {
-                        p.PrintLine($"{field.MergedName} = value.{field.Name},");
-                    }
+                    p.PrintLine($"return new {mergedStructName}();");
                 }
-                p = p.DecreasedIndent();
-                p.PrintLine("};");
+                else
+                {
+                    p.PrintLine($"return new {mergedStructName} {{");
+                    p = p.IncreasedIndent();
+                    {
+                        p.PrintLine($"CurrentTypeId = {mergedStructName}.TypeId.{structRef.Symbol.ToValidIdentifier()},");
+
+                        foreach (var field in fields)
+                        {
+                            p.PrintLine($"{field.MergedName} = value.{field.Name},");
+                        }
+                    }
+                    p = p.DecreasedIndent();
+                    p.PrintLine("};");
+                }
             }
             p.CloseScope();
             p.PrintEndLine();

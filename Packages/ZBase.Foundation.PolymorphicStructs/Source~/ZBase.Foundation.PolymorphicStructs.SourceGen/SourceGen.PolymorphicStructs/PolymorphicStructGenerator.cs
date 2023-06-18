@@ -165,11 +165,6 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
             {
                 BuildMergedFieldRefList(kv.Value, mergedFieldRefList, mergedFieldRefPool);
 
-                if (mergedFieldRefList.Count < 1)
-                {
-                    continue;
-                }
-
                 if (interfaceMap.TryGetValue(kv.Key, out var interfaceRef))
                 {
                     GenerateMergedStruct(

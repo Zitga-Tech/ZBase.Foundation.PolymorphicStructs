@@ -105,6 +105,11 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
             p.PrintLine("public TypeId CurrentTypeId;");
             p.PrintEndLine();
 
+            if (mergedFieldRefList.Count < 1)
+            {
+                return;
+            }
+
             foreach (var field in mergedFieldRefList)
             {
                 p.PrintBeginLine("public ")
@@ -285,7 +290,11 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
                             }
 
                             p.Print(callClause).PrintEndLine();
-                            p.PrintLine("this = instance;");
+
+                            if (structRef.Fields.Length > 0)
+                            {
+                                p.PrintLine("this = instance;");
+                            }
 
                             if (method.ReturnsVoid)
                             {
