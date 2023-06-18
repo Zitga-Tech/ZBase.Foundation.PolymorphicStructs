@@ -11,7 +11,7 @@ using ZBase.Foundation.SourceGen;
 namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
 {
     using StructMap = Dictionary<INamedTypeSymbol, StructRef>;
-    using InterfaceMap = ImmutableDictionary<ISymbol, InterfaceRef>;
+    using InterfaceMap = Dictionary<ISymbol, InterfaceRef>;
     using InterfaceToStructMap = Dictionary<INamedTypeSymbol, Dictionary<INamedTypeSymbol, StructRef>>;
 
     [Generator]
@@ -152,11 +152,6 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
                 , out var count
             );
 
-            if (count < 1)
-            {
-                return;
-            }
-
             var mergedFieldRefPool = new Queue<MergedFieldRef>(count);
             var mergedFieldRefList = new List<MergedFieldRef>(count);
             var sb = new StringBuilder();
@@ -167,6 +162,8 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
 
                 if (interfaceMap.TryGetValue(kv.Key, out var interfaceRef))
                 {
+                    interfaceMap.Remove(kv.Key);
+
                     GenerateMergedStruct(
                           context
                         , compilation
@@ -188,6 +185,14 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
                 , outputSourceGenFiles
                 , structRefs
             );
+
+            GenerateEmptyMergedStruct(
+                  context
+                , compilation
+                , outputSourceGenFiles
+                , interfaceMap.Values
+                , sb
+            );
         }
 
         private static void BuildMaps(
@@ -200,11 +205,15 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
             , out int maxStructCount
         )
         {
-            interfaceMap = interfaces.ToImmutableDictionary(
-                  keySelector: static x => x.symbol
-                , elementSelector: static x => new InterfaceRef(x.syntax, x.symbol)
-                , SymbolEqualityComparer.Default
-            );
+            interfaceMap = new(SymbolEqualityComparer.Default);
+
+            foreach (var (syntax, symbol) in interfaces)
+            {
+                if (interfaceMap.ContainsKey(symbol) == false)
+                {
+                    interfaceMap.Add(symbol, new InterfaceRef(syntax, symbol));
+                }
+            }
 
             interfaceToStructMap = new InterfaceToStructMap(
                 SymbolEqualityComparer.Default

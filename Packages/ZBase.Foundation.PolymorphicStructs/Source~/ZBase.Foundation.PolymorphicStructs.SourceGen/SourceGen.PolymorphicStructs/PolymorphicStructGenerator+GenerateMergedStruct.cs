@@ -16,7 +16,7 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
             , InterfaceRef interfaceRef
             , IEnumerable<StructRef> structRefs
             , ulong structRefCount
-            , List<MergedFieldRef> mergedFieldRefList
+            , IReadOnlyCollection<MergedFieldRef> mergedFieldRefList
             , StringBuilder sb
         )
         {
@@ -67,7 +67,7 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
               InterfaceRef interfaceRef
             , IEnumerable<StructRef> structRefs
             , ulong structRefCount
-            , List<MergedFieldRef> mergedFieldRefList
+            , IReadOnlyCollection<MergedFieldRef> mergedFieldRefList
             , StringBuilder sb
         )
         {
@@ -89,10 +89,10 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
             p.OpenScope();
             {
                 WriteFields(ref p, mergedFieldRefList);
-                WriteMembers(ref p, interfaceRef, structRefs, sb);
+                WriteMembers(ref p, interfaceRef, structRefs, structRefCount, sb);
                 WriteGetTypeIdMethods(ref p, interfaceRef, structRefs);
                 WriteEnum(ref p, structRefs, structRefCount);
-                WriteGenericTypeIdStruct(ref p, interfaceRef, structRefs);
+                WriteGenericTypeIdStruct(ref p, interfaceRef, structRefs, structRefCount);
             }
             p.CloseScope();
 
@@ -100,7 +100,7 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
             return p.Result;
         }
 
-        private static void WriteFields(ref Printer p, List<MergedFieldRef> mergedFieldRefList)
+        private static void WriteFields(ref Printer p, IReadOnlyCollection<MergedFieldRef> mergedFieldRefList)
         {
             p.PrintLine("public TypeId CurrentTypeId;");
             p.PrintEndLine();
@@ -126,6 +126,7 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
               ref Printer p
             , InterfaceRef interfaceRef
             , IEnumerable<StructRef> structRefs
+            , ulong structRefCount
             , StringBuilder sb
         )
         {
@@ -133,13 +134,13 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
             {
                 if (member is IMethodSymbol method)
                 {
-                    WriteMethod(ref p, structRefs, method, sb);
+                    WriteMethod(ref p, structRefs, structRefCount, method, sb);
                     continue;
                 }
 
                 if (member is IPropertySymbol property)
                 {
-                    WriteProperty(ref p, interfaceRef, structRefs, property);
+                    WriteProperty(ref p, interfaceRef, structRefs, structRefCount, property);
                     continue;
                 }
             }
@@ -148,6 +149,7 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
         private static void WriteMethod(
               ref Printer p
             , IEnumerable<StructRef> structRefs
+            , ulong structRefCount
             , IMethodSymbol method
             , StringBuilder sb
         )
@@ -178,7 +180,7 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
             var callClause = BuildCallClause(sb, method, parameters, lastParamIndex);
             var assignOutParams = BuildAssignOutParams(sb, parameters);
 
-            WriteMethodBody(ref p, structRefs, method, callClause, assignOutParams);
+            WriteMethodBody(ref p, structRefs, structRefCount, method, callClause, assignOutParams);
 
             p.PrintEndLine();
 
@@ -230,6 +232,7 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
               ref Printer p
             , InterfaceRef interfaceRef
             , IEnumerable<StructRef> structRefs
+            , ulong structRefCount
             , IPropertySymbol property
         )
         {
@@ -240,13 +243,13 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
                 if (property.GetMethod != null)
                 {
                     p.PrintLine("get");
-                    WriteMethodBody(ref p, structRefs, property.GetMethod, $"instance.{property.Name};", "");
+                    WriteMethodBody(ref p, structRefs, structRefCount, property.GetMethod, $"instance.{property.Name};", "");
                 }
 
                 if (property.SetMethod != null)
                 {
                     p.PrintLine("set");
-                    WriteMethodBody(ref p, structRefs, property.SetMethod, $"instance.{property.Name} = value;", "");
+                    WriteMethodBody(ref p, structRefs, structRefCount, property.SetMethod, $"instance.{property.Name} = value;", "");
                 }
             }
             p.CloseScope();
@@ -255,11 +258,40 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
         private static void WriteMethodBody(
               ref Printer p
             , IEnumerable<StructRef> structRefs
+            , ulong structRefCount
             , IMethodSymbol method
             , string callClause
             , string assignOutParams
         )
         {
+            if (structRefCount < 1)
+            {
+                p.OpenScope();
+                {
+                    if (method.RefKind is (RefKind.Ref or RefKind.RefReadOnly))
+                    {
+                        p.PrintBeginLine("throw new global::System.InvalidOperationException(\"");
+                        p.Print("Cannot return any reference from the default case.");
+                        p.PrintEndLine("\");");
+                    }
+                    else
+                    {
+                        if (string.IsNullOrWhiteSpace(assignOutParams) == false)
+                        {
+                            p.PrintLine(assignOutParams);
+                        }
+
+                        if (method.ReturnsVoid == false)
+                        {
+                            p.PrintLine("return default;");
+                        }
+                    }
+                }
+                p.CloseScope();
+
+                return;
+            }
+
             p.OpenScope();
             {
                 p.PrintLine("switch (this.CurrentTypeId)");
@@ -423,19 +455,23 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
               ref Printer p
             , InterfaceRef interfaceRef
             , IEnumerable<StructRef> structRefs
+            , ulong structRefCount
         )
         {
-            p.PrintLine(GENERATED_CODE).PrintLine(EXCLUDE_COVERAGE);
-            p.PrintLine($"static {interfaceRef.StructName}()");
-            p.OpenScope();
+            if (structRefCount > 0)
             {
-                foreach (var structRef in structRefs)
+                p.PrintLine(GENERATED_CODE).PrintLine(EXCLUDE_COVERAGE);
+                p.PrintLine($"static {interfaceRef.StructName}()");
+                p.OpenScope();
                 {
-                    p.PrintLine($"TypeId<{structRef.Symbol.ToFullName()}>.Value = TypeId.{structRef.Symbol.ToValidIdentifier()};");
+                    foreach (var structRef in structRefs)
+                    {
+                        p.PrintLine($"TypeId<{structRef.Symbol.ToFullName()}>.Value = TypeId.{structRef.Symbol.ToValidIdentifier()};");
+                    }
                 }
+                p.CloseScope();
+                p.PrintEndLine();
             }
-            p.CloseScope();
-            p.PrintEndLine();
 
             p.PrintLine(GENERATED_CODE).PrintLine(EXCLUDE_COVERAGE);
             p.PrintLine($"private struct TypeId<T> where T : struct, {interfaceRef.Symbol.ToFullName()}");
