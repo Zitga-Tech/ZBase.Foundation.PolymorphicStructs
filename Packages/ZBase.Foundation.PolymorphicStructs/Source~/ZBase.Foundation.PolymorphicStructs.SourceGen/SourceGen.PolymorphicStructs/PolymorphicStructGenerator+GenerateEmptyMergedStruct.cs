@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Text;
+using System.Threading;
 using Microsoft.CodeAnalysis;
 using ZBase.Foundation.SourceGen;
 
@@ -14,6 +15,7 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
             , bool outputSourceGenFiles
             , IEnumerable<InterfaceRef> interfaceRefs
             , StringBuilder sb
+            , CancellationToken token
         )
         {
             foreach (var interfaceRef in interfaceRefs)
@@ -27,6 +29,7 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
                         , 0
                         , Array.Empty<MergedFieldRef>()
                         , sb
+                        , token
                     );
                     var sourceFilePath = syntaxTree.GetGeneratedSourceFilePath(compilation.Assembly.Name, GENERATOR_NAME);
 

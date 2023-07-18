@@ -148,18 +148,44 @@ namespace PolymorphicStructTests
     [PolymorphicStructInterface]
     public interface IAnimationEvent
     {
+        bool IsValid
+        {
+            [CustomAttributes.Method]
+            get;
+        }
+
+        [CustomAttributes.Method]
         void Invoke();
     }
+
+    partial struct AnimationEventStruct { }
 
     [PolymorphicStruct]
     public partial struct AnimationAttackEvent : IAnimationEvent
     {
+        public bool IsValid
+        {
+            get => false;
+        }
+
         public void Invoke() { }
     }
 
     [PolymorphicStruct]
     public partial struct AnimationWalkEvent : IAnimationEvent
     {
+        public bool IsValid
+        {
+            get => true;
+        }
+
         public void Invoke() { }
     }
+}
+
+namespace CustomAttributes
+{
+    [AttributeUsage(AttributeTargets.Method)]
+    public class MethodAttribute : Attribute { }
+
 }

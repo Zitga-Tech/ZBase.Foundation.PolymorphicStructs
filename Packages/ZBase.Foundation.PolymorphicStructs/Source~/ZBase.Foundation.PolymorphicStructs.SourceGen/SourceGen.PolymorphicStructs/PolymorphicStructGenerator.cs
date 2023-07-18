@@ -173,6 +173,7 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
                         , (ulong)kv.Value.Count
                         , mergedFieldRefList
                         , sb
+                        , context.CancellationToken
                     );
                 }
 
@@ -192,6 +193,7 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
                 , outputSourceGenFiles
                 , interfaceMap.Values
                 , sb
+                , context.CancellationToken
             );
         }
 

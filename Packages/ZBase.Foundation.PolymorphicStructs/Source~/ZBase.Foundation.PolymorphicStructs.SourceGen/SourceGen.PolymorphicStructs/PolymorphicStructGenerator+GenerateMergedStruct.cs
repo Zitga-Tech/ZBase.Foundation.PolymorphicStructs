@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Text;
+using System.Threading;
 using Microsoft.CodeAnalysis;
 using ZBase.Foundation.SourceGen;
 
@@ -18,12 +19,21 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
             , ulong structRefCount
             , IReadOnlyCollection<MergedFieldRef> mergedFieldRefList
             , StringBuilder sb
+            , CancellationToken token
         )
         {
             try
             {
                 var syntaxTree = interfaceRef.Syntax.SyntaxTree;
-                var source = WriteMergedStruct(interfaceRef, structRefs, structRefCount, mergedFieldRefList, sb);
+                var source = WriteMergedStruct(
+                      interfaceRef
+                    , structRefs
+                    , structRefCount
+                    , mergedFieldRefList
+                    , sb
+                    , token
+                );
+
                 var sourceFilePath = syntaxTree.GetGeneratedSourceFilePath(compilation.Assembly.Name, GENERATOR_NAME);
 
                 var outputSource = TypeCreationHelpers.GenerateSourceTextForRootNodes(
@@ -69,6 +79,7 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
             , ulong structRefCount
             , IReadOnlyCollection<MergedFieldRef> mergedFieldRefList
             , StringBuilder sb
+            , CancellationToken token
         )
         {
             var scopePrinter = new SyntaxNodeScopePrinter(Printer.DefaultLarge, interfaceRef.Syntax.Parent);
@@ -89,7 +100,7 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
             p.OpenScope();
             {
                 WriteFields(ref p, mergedFieldRefList);
-                WriteMembers(ref p, interfaceRef, structRefs, structRefCount, sb);
+                WriteMembers(ref p, interfaceRef, structRefs, structRefCount, sb, token);
                 WriteGetTypeIdMethods(ref p, interfaceRef, structRefs);
                 WriteEnum(ref p, structRefs, structRefCount);
                 WriteGenericTypeIdStruct(ref p, interfaceRef, structRefs, structRefCount);
@@ -128,19 +139,34 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
             , IEnumerable<StructRef> structRefs
             , ulong structRefCount
             , StringBuilder sb
+            , CancellationToken token
         )
         {
             foreach (var member in interfaceRef.Members)
             {
                 if (member is IMethodSymbol method)
                 {
-                    WriteMethod(ref p, structRefs, structRefCount, method, sb);
+                    WriteMethod(
+                          ref p
+                        , structRefs
+                        , structRefCount
+                        , method
+                        , sb
+                        , token
+                    );
                     continue;
                 }
 
                 if (member is IPropertySymbol property)
                 {
-                    WriteProperty(ref p, interfaceRef, structRefs, structRefCount, property);
+                    WriteProperty(
+                          ref p
+                        , interfaceRef
+                        , structRefs
+                        , structRefCount
+                        , property
+                        , token
+                    );
                     continue;
                 }
             }
@@ -152,12 +178,14 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
             , ulong structRefCount
             , IMethodSymbol method
             , StringBuilder sb
+            , CancellationToken token
         )
         {
             var returnType = method.ReturnsVoid ? "void" : method.ReturnType.ToFullName();
             var parameters = method.Parameters;
             var lastParamIndex = parameters.Length - 1;
 
+            WriteAttributes(ref p, method, token);
             p.PrintLine(GENERATED_CODE).PrintLine(EXCLUDE_COVERAGE);
             p.PrintBeginLine($"public {GetReturnRefKind(method.RefKind)}{returnType} {method.Name}(");
 
@@ -234,6 +262,7 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
             , IEnumerable<StructRef> structRefs
             , ulong structRefCount
             , IPropertySymbol property
+            , CancellationToken token
         )
         {
             p.PrintLine(GENERATED_CODE).PrintLine(EXCLUDE_COVERAGE);
@@ -242,17 +271,53 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
             {
                 if (property.GetMethod != null)
                 {
+                    WriteAttributes(ref p, property.GetMethod, token);
+
                     p.PrintLine("get");
-                    WriteMethodBody(ref p, structRefs, structRefCount, property.GetMethod, $"instance.{property.Name};", "");
+                    WriteMethodBody(
+                          ref p
+                        , structRefs
+                        , structRefCount
+                        , property.GetMethod
+                        , $"instance.{property.Name};"
+                        , ""
+                    );
                 }
 
                 if (property.SetMethod != null)
                 {
+                    WriteAttributes(ref p, property.SetMethod, token);
+
                     p.PrintLine("set");
-                    WriteMethodBody(ref p, structRefs, structRefCount, property.SetMethod, $"instance.{property.Name} = value;", "");
+                    WriteMethodBody(
+                          ref p
+                        , structRefs
+                        , structRefCount
+                        , property.SetMethod
+                        , $"instance.{property.Name} = value;"
+                        , ""
+                    );
                 }
             }
             p.CloseScope();
+        }
+
+        private static void WriteAttributes(
+              ref Printer p
+            , ISymbol symbol
+            , CancellationToken token
+        )
+        {
+            foreach (var attribute in symbol.GetAttributes())
+            {
+                if (attribute.ApplicationSyntaxReference is not SyntaxReference syntaxRef)
+                {
+                    continue;
+                }
+
+                var syntax = syntaxRef.GetSyntax(token);
+                p.PrintBeginLine("[").Print(syntax.ToFullString()).PrintEndLine("]");
+            }
         }
 
         private static void WriteMethodBody(
