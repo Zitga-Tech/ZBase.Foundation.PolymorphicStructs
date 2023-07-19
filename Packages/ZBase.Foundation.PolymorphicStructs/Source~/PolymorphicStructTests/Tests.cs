@@ -8,16 +8,16 @@ namespace PolymorphicStructTests
     {
         public static void Main()
         {
-            Console.WriteLine(MyStateStruct.GetTypeId<StateC>());
-            Console.WriteLine(MyStateStruct.GetTypeId<StateA>());
-            Console.WriteLine(MyStateStruct.GetTypeId<StateB>());
+            Console.WriteLine(MyState.GetTypeId<StateC>());
+            Console.WriteLine(MyState.GetTypeId<StateA>());
+            Console.WriteLine(MyState.GetTypeId<StateB>());
         }
     }
 
     [Serializable]
     public struct MyStateMachine
     {
-        public MyStateStruct currentState;
+        public MyState currentState;
 
         public float speed;
         public Vector3 startTranslation;
@@ -76,7 +76,7 @@ namespace PolymorphicStructTests
 
             if (_durationCounter <= 0f)
             {
-                refData.stateMachine.transitionToStateIndex = (int)MyStateStruct.GetTypeId(default(StateB));
+                refData.stateMachine.transitionToStateIndex = (int)MyState.GetTypeId(default(StateB));
             }
         }
     }
@@ -108,7 +108,7 @@ namespace PolymorphicStructTests
 
             if (_durationCounter <= 0f)
             {
-                refData.stateMachine.transitionToStateIndex = (int)MyStateStruct.GetTypeId(default(StateC));
+                refData.stateMachine.transitionToStateIndex = (int)MyState.GetTypeId(default(StateC));
             }
         }
     }
@@ -140,7 +140,7 @@ namespace PolymorphicStructTests
 
             if (_durationCounter <= 0f)
             {
-                refData.stateMachine.transitionToStateIndex = (int)MyStateStruct.GetTypeId(default(StateA));
+                refData.stateMachine.transitionToStateIndex = (int)MyState.GetTypeId(default(StateA));
             }
         }
     }
@@ -158,7 +158,7 @@ namespace PolymorphicStructTests
         void Invoke();
     }
 
-    partial struct AnimationEventStruct { }
+    partial struct AnimationEvent { }
 
     [PolymorphicStruct]
     public partial struct AnimationAttackEvent : IAnimationEvent

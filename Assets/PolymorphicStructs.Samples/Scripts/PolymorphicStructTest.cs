@@ -15,7 +15,7 @@ namespace PolymorphicStructs.Samples
     public struct MyStateMachine
     {
         [HideInInspector]
-        public MyStateStruct currentState;
+        public MyState currentState;
 
         [HideInInspector]
         public float speed;
@@ -81,7 +81,7 @@ namespace PolymorphicStructs.Samples
 
             if (_durationCounter <= 0f)
             {
-                refData.stateMachine.transitionToStateIndex = (int)MyStateStruct.GetTypeId<StateB>();
+                refData.stateMachine.transitionToStateIndex = (int)MyState.GetTypeId<StateB>();
             }
         }
     }
@@ -113,7 +113,7 @@ namespace PolymorphicStructs.Samples
 
             if (_durationCounter <= 0f)
             {
-                refData.stateMachine.transitionToStateIndex = (int)MyStateStruct.GetTypeId<StateC>();
+                refData.stateMachine.transitionToStateIndex = (int)MyState.GetTypeId<StateC>();
             }
         }
     }
@@ -145,7 +145,7 @@ namespace PolymorphicStructs.Samples
 
             if (_durationCounter <= 0f)
             {
-                refData.stateMachine.transitionToStateIndex = (int)MyStateStruct.GetTypeId<StateA>();
+                refData.stateMachine.transitionToStateIndex = (int)MyState.GetTypeId<StateA>();
             }
         }
     }
@@ -155,6 +155,8 @@ namespace PolymorphicStructs.Samples
     {
         void Invoke();
     }
+
+    partial struct AnimationEvent { }
 
     [PolymorphicStruct]
     public partial struct AnimationAttackEvent : IAnimationEvent

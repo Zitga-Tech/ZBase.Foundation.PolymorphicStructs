@@ -58,11 +58,11 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
                 && char.IsUpper(nameSpan[1])
             )
             {
-                StructName = $"{nameSpan.Slice(1).ToString()}Struct";
+                StructName = $"{nameSpan.Slice(1).ToString()}";
                 return;
             }
 
-            StructName = $"{Symbol.Name}Struct";
+            StructName = $"{Symbol.Name}";
         }
 
         private void InitMembers()
