@@ -130,8 +130,10 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
             , StructRef structRef
         )
         {
+            var mergedStructName = $"{interfaceRef.FullContainingNameWithDot}{interfaceRef.StructName}";
+
             p.PrintLine(AGGRESSIVE_INLINING).PrintLine(GENERATED_CODE).PrintLine(EXCLUDE_COVERAGE);
-            p.PrintLine($"public static implicit operator {structRef.Syntax.Identifier.Text}(in {interfaceRef.FullContainingNameWithDot}{interfaceRef.StructName} value)");
+            p.PrintLine($"public static implicit operator {structRef.Syntax.Identifier.Text}(in {mergedStructName} value)");
             p.OpenScope();
             {
                 var fields = structRef.Fields;
@@ -176,25 +178,18 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
             {
                 var fields = structRef.Fields;
 
-                if (fields.Length < 1)
+                p.PrintLine($"return new {mergedStructName} {{");
+                p = p.IncreasedIndent();
                 {
-                    p.PrintLine($"return new {mergedStructName}();");
-                }
-                else
-                {
-                    p.PrintLine($"return new {mergedStructName} {{");
-                    p = p.IncreasedIndent();
-                    {
-                        p.PrintLine($"CurrentTypeId = {mergedStructName}.TypeId.{structRef.Symbol.ToValidIdentifier()},");
+                    p.PrintLine($"CurrentTypeId = {mergedStructName}.TypeId.{structRef.Symbol.ToValidIdentifier()},");
 
-                        foreach (var field in fields)
-                        {
-                            p.PrintLine($"{field.MergedName} = value.{field.Name},");
-                        }
+                    foreach (var field in fields)
+                    {
+                        p.PrintLine($"{field.MergedName} = value.{field.Name},");
                     }
-                    p = p.DecreasedIndent();
-                    p.PrintLine("};");
                 }
+                p = p.DecreasedIndent();
+                p.PrintLine("};");
             }
             p.CloseScope();
             p.PrintEndLine();
