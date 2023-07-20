@@ -236,8 +236,15 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
 
                 if (method.ReturnsVoid == false)
                 {
-                    var resultVarName = GetDefaultResultVarName(method);
-                    p.Print($", ref {method.ReturnType.ToFullName()} {resultVarName}");
+                    if (method.Parameters.Length > 0)
+                    {
+                        p.Print(", ");
+                    }
+                    
+                    p.Print("ref ")
+                        .Print(method.ReturnType.ToFullName())
+                        .Print(" ")
+                        .Print(GetDefaultResultVarName(method));
                 }
             }
             p.PrintEndLine(");");
@@ -564,7 +571,12 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
 
                 if (string.IsNullOrWhiteSpace(resultVarName) == false)
                 {
-                    p.Print($", ref {resultVarName}");
+                    if (parameters.Length > 0)
+                    {
+                        p.Print(", ");
+                    }
+
+                    p.Print("ref ").Print(resultVarName);
                 }
 
                 p.PrintEndLine(");");

@@ -191,6 +191,8 @@ namespace PolymorphicStructTests
     public interface IOutTest
     {
         int Invoke(out int value);
+
+        int Invoke();
     }
 
     partial struct OutTest
@@ -204,6 +206,11 @@ namespace PolymorphicStructTests
         public int Invoke(out int value)
         {
             value = default;
+            return default;
+        }
+
+        public int Invoke()
+        {
             return default;
         }
     }
