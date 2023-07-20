@@ -228,8 +228,6 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
 
             p.PrintEndLine();
 
-            WriteAttributes(ref p, method, token);
-            p.PrintLine(GENERATED_CODE).PrintLine(EXCLUDE_COVERAGE);
             p.PrintBeginLine($"partial void {GetDefaultMethodName(method)}(");
             {
                 WriteParameters(ref p, method, outToRef: true);
