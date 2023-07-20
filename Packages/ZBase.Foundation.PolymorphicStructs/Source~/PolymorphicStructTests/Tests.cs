@@ -49,6 +49,8 @@ namespace PolymorphicStructTests
         public void OnStateUpdate(ref StateUpdateData_RW refData, in StateUpdateData_RO inData);
     }
 
+    partial struct MyState { }
+
     [Serializable]
     [PolymorphicStruct]
     public partial struct StateA : IMyState
@@ -152,6 +154,7 @@ namespace PolymorphicStructTests
         {
             [CustomAttributes.Method]
             get;
+            set;
         }
 
         [CustomAttributes.Method]
@@ -166,6 +169,7 @@ namespace PolymorphicStructTests
         public bool IsValid
         {
             get => false;
+            set { }
         }
 
         public void Invoke() { }
@@ -177,9 +181,31 @@ namespace PolymorphicStructTests
         public bool IsValid
         {
             get => true;
+            set { }
         }
 
         public void Invoke() { }
+    }
+
+    [PolymorphicStructInterface]
+    public interface IOutTest
+    {
+        int Invoke(out int value);
+    }
+
+    partial struct OutTest
+    {
+
+    }
+
+    [PolymorphicStruct]
+    public partial struct OutTestA : IOutTest
+    {
+        public int Invoke(out int value)
+        {
+            value = default;
+            return default;
+        }
     }
 }
 

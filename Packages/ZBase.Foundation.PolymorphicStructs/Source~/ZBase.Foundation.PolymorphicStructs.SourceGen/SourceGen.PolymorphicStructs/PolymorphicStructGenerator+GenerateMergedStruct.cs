@@ -100,6 +100,7 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
             p.OpenScope();
             {
                 WriteFields(ref p, mergedFieldRefList);
+                WriteIsType(ref p, interfaceRef, structRefs, structRefCount);
                 WriteMembers(ref p, interfaceRef, structRefs, structRefCount, sb, token);
                 WriteGetTypeIdMethods(ref p, interfaceRef, structRefs);
                 WriteEnum(ref p, structRefs, structRefCount);
@@ -131,6 +132,35 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
             }
 
             p.PrintEndLine();
+        }
+
+        private static void WriteIsType(
+              ref Printer p
+            , InterfaceRef interfaceRef
+            , IEnumerable<StructRef> structRefs
+            , ulong structRefCount
+        )
+        {
+            p.PrintLine(AGGRESSIVE_INLINING).PrintLine(GENERATED_CODE).PrintLine(EXCLUDE_COVERAGE);
+            p.PrintLine($"public readonly bool IsType<T>() where T : struct, {interfaceRef.Symbol.ToFullName()}");
+            p.OpenScope();
+            {
+                p.PrintLine($"return GetTypeId<T>() == this.CurrentTypeId;");
+            }
+            p.CloseScope();
+            p.PrintEndLine();
+
+            foreach (var structRef in structRefs)
+            {
+                p.PrintLine(AGGRESSIVE_INLINING).PrintLine(GENERATED_CODE).PrintLine(EXCLUDE_COVERAGE);
+                p.PrintLine($"public readonly bool IsType({structRef.Symbol.ToFullName()} _)");
+                p.OpenScope();
+                {
+                    p.PrintLine($"return GetTypeId<{structRef.Symbol.ToFullName()}>() == this.CurrentTypeId;");
+                }
+                p.CloseScope();
+                p.PrintEndLine();
+            }
         }
 
         private static void WriteMembers(
@@ -182,43 +212,46 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
         )
         {
             var returnType = method.ReturnsVoid ? "void" : method.ReturnType.ToFullName();
-            var parameters = method.Parameters;
-            var lastParamIndex = parameters.Length - 1;
 
             WriteAttributes(ref p, method, token);
             p.PrintLine(GENERATED_CODE).PrintLine(EXCLUDE_COVERAGE);
             p.PrintBeginLine($"public {GetReturnRefKind(method.RefKind)}{returnType} {method.Name}(");
-
-            for (var i = 0; i < parameters.Length; i++)
             {
-                var param = parameters[i];
-
-                p.Print(GetRefKind(param.RefKind))
-                    .Print(param.Type.ToFullName())
-                    .Print(" ")
-                    .Print(param.Name);
-
-                if (i < lastParamIndex)
-                {
-                    p.Print(", ");
-                }
+                WriteParameters(ref p, method);
             }
             p.PrintEndLine(")");
 
-            var callClause = BuildCallClause(sb, method, parameters, lastParamIndex);
-            var assignOutParams = BuildAssignOutParams(sb, parameters);
+            var callClause = BuildCallClause(sb, method);
+            var assignOutParams = BuildAssignOutParams(sb, method);
 
-            WriteMethodBody(ref p, structRefs, structRefCount, method, callClause, assignOutParams);
+            WriteMethodBody(ref p, structRefs, structRefCount, method, false, callClause, assignOutParams);
+
+            p.PrintEndLine();
+
+            WriteAttributes(ref p, method, token);
+            p.PrintLine(GENERATED_CODE).PrintLine(EXCLUDE_COVERAGE);
+            p.PrintBeginLine($"partial void {GetDefaultMethodName(method)}(");
+            {
+                WriteParameters(ref p, method, outToRef: true);
+
+                if (method.ReturnsVoid == false)
+                {
+                    var resultVarName = GetDefaultResultVarName(method);
+                    p.Print($", ref {method.ReturnType.ToFullName()} {resultVarName}");
+                }
+            }
+            p.PrintEndLine(");");
 
             p.PrintEndLine();
 
             static string BuildCallClause(
                   StringBuilder sb
                 , IMethodSymbol method
-                , ImmutableArray<IParameterSymbol> parameters
-                , int lastParamIndex
             )
             {
+                var parameters = method.Parameters;
+                var lastParamIndex = parameters.Length - 1;
+
                 sb.Clear();
                 sb.Append($"instance.{method.Name}(");
 
@@ -239,12 +272,12 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
 
             static string BuildAssignOutParams(
                   StringBuilder sb
-                , ImmutableArray<IParameterSymbol> parameters
+                , IMethodSymbol method
             )
             {
                 sb.Clear();
 
-                foreach (var param in parameters)
+                foreach (var param in method.Parameters)
                 {
                     if (param.RefKind == RefKind.Out)
                     {
@@ -253,6 +286,31 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
                 }
 
                 return sb.ToString();
+            }
+        }
+
+        private static void WriteParameters(
+              ref Printer p
+            , IMethodSymbol method
+            , bool outToRef = false
+        )
+        {
+            var parameters = method.Parameters;
+            var lastParamIndex = parameters.Length - 1;
+
+            for (var i = 0; i < parameters.Length; i++)
+            {
+                var param = parameters[i];
+
+                p.Print(GetRefKind(param.RefKind, outToRef))
+                    .Print(param.Type.ToFullName())
+                    .Print(" ")
+                    .Print(param.Name);
+
+                if (i < lastParamIndex)
+                {
+                    p.Print(", ");
+                }
             }
         }
 
@@ -279,6 +337,7 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
                         , structRefs
                         , structRefCount
                         , property.GetMethod
+                        , true
                         , $"instance.{property.Name};"
                         , ""
                     );
@@ -294,6 +353,7 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
                         , structRefs
                         , structRefCount
                         , property.SetMethod
+                        , true
                         , $"instance.{property.Name} = value;"
                         , ""
                     );
@@ -325,6 +385,7 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
             , IEnumerable<StructRef> structRefs
             , ulong structRefCount
             , IMethodSymbol method
+            , bool isPropertyBody
             , string callClause
             , string assignOutParams
         )
@@ -346,9 +407,13 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
                             p.PrintLine(assignOutParams);
                         }
 
-                        if (method.ReturnsVoid == false)
+                        if (isPropertyBody)
                         {
                             p.PrintLine("return default;");
+                        }
+                        else
+                        {
+                            WriteDefaultMethodBranch(ref p, method);
                         }
                     }
                 }
@@ -429,13 +494,20 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
                                 p.PrintLine(assignOutParams);
                             }
 
-                            if (method.ReturnsVoid)
+                            if (isPropertyBody)
                             {
-                                p.PrintLine("return;");
+                                if (method.ReturnsVoid)
+                                {
+                                    p.PrintLine("return;");
+                                }
+                                else
+                                {
+                                    p.PrintLine("return default;");
+                                }
                             }
                             else
                             {
-                                p.PrintLine("return default;");
+                                WriteDefaultMethodBranch(ref p, method);
                             }
                         }
                     }
@@ -444,6 +516,59 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
                 p.CloseScope();
             }
             p.CloseScope();
+
+            static void WriteDefaultMethodBranch(
+                  ref Printer p
+                , IMethodSymbol method
+            )
+            {
+                if (method.ReturnsVoid)
+                {
+                    WriteDefaultMethodCall(ref p, method);
+                    p.PrintLine("return;");
+                }
+                else
+                {
+                    var resultVarName = GetDefaultResultVarName(method);
+                    p.PrintLine($"var {resultVarName} = default({method.ReturnType.ToFullName()});");
+                    p.PrintEndLine();
+                    WriteDefaultMethodCall(ref p, method, resultVarName);
+                    p.PrintEndLine();
+                    p.PrintLine($"return {resultVarName};");
+                }
+            }
+
+            static void WriteDefaultMethodCall(
+                  ref Printer p
+                , IMethodSymbol method
+                , string resultVarName = ""
+            )
+            {
+                var parameters = method.Parameters;
+                var lastParamIndex = parameters.Length - 1;
+
+                p.PrintBeginLine($"{GetDefaultMethodName(method)}(");
+
+                for (var i = 0; i < parameters.Length; i++)
+                {
+                    var param = parameters[i];
+
+                    p.Print(GetRefKind(param.RefKind, true))
+                        .Print(param.Name);
+
+                    if (i < lastParamIndex)
+                    {
+                        p.Print(", ");
+                    }
+                }
+
+                if (string.IsNullOrWhiteSpace(resultVarName) == false)
+                {
+                    p.Print($", ref {resultVarName}");
+                }
+
+                p.PrintEndLine(");");
+            }
         }
 
         private static void WriteGetTypeIdMethods(
@@ -548,6 +673,12 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
             p.PrintEndLine();
         }
 
+        private static string GetDefaultMethodName(IMethodSymbol method)
+            => $"{method.Name}_Default";
+
+        private static string GetDefaultResultVarName(IMethodSymbol method)
+            => $"{GetDefaultMethodName(method)}_result";
+
         private static string GetReturnRefKind(RefKind refKind)
         {
             return refKind switch {
@@ -568,5 +699,14 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
             };
         }
 
+        private static string GetRefKind(RefKind refKind, bool outToRef)
+        {
+            return refKind switch {
+                RefKind.Ref => "ref ",
+                RefKind.Out => outToRef ? "ref " : "out ",
+                RefKind.In => "in ",
+                _ => "",
+            };
+        }
     }
 }
