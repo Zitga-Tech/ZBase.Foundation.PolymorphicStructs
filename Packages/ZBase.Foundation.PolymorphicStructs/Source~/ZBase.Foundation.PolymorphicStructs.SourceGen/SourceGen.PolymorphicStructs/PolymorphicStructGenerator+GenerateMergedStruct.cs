@@ -85,7 +85,8 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
             var scopePrinter = new SyntaxNodeScopePrinter(Printer.DefaultLarge, interfaceRef.Syntax.Parent);
             var p = scopePrinter.printer;
 
-            p.PrintLine("#pragma warning disable");
+            p.PrintEndLine();
+            p.Print("#pragma warning disable").PrintEndLine();
             p.PrintEndLine();
 
             p = p.IncreasedIndent();
