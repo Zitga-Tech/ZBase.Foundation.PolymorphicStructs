@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Collections.Immutable;
 using System.Text;
 using System.Threading;
 using Microsoft.CodeAnalysis;
@@ -103,6 +102,7 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
                 WriteFields(ref p, mergedFieldRefList);
                 WriteIsType(ref p, interfaceRef, structRefs, structRefCount);
                 WriteMembers(ref p, interfaceRef, structRefs, structRefCount, sb, token);
+                WriteGenericMembers(ref p, interfaceRef, structRefs, structRefCount, sb, token);
                 WriteGetTypeIdMethods(ref p, interfaceRef, structRefs);
                 WriteEnum(ref p, structRefs, structRefCount);
                 WriteGenericTypeIdStruct(ref p, interfaceRef, structRefs, structRefCount);
@@ -164,6 +164,181 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
             }
         }
 
+        private static void WriteGenericMembers(
+              ref Printer p
+            , InterfaceRef interfaceRef
+            , IEnumerable<StructRef> structRefs
+            , ulong structRefCount
+            , StringBuilder sb
+            , CancellationToken token
+        )
+        {
+            foreach (var member in interfaceRef.Members)
+            {
+                if (member is IMethodSymbol method
+                    && method.RefKind == RefKind.None
+                )
+                {
+                    WriteForMethod(
+                          ref p
+                        , interfaceRef
+                        , method
+                        , sb
+                    );
+                    continue;
+                }
+
+                if (member is IPropertySymbol property)
+                {
+                    WriteForProperty(
+                          ref p
+                        , interfaceRef
+                        , property
+                    );
+                    continue;
+                }
+            }
+
+            static void WriteForMethod(
+                  ref Printer p
+                , InterfaceRef interfaceRef
+                , IMethodSymbol method
+                , StringBuilder sb
+            )
+            {
+                var returnType = method.ReturnsVoid ? "void" : method.ReturnType.ToFullName();
+                var genericType = $"T{interfaceRef.StructName}";
+
+                p.PrintLine(GENERATED_CODE).PrintLine(EXCLUDE_COVERAGE).PrintLine(AGGRESSIVE_INLINING);
+                p.PrintBeginLine($"private static {GetReturnRefKind(method.RefKind)}{returnType} ")
+                    .Print($"Internal__{method.Name}<{genericType}>(");
+                {
+                    p.Print($"ref {genericType} instance");
+
+                    WriteParameters(ref p, method);
+                }
+                p.PrintEndLine(")");
+                p.WithIncreasedIndent()
+                    .PrintLine($"where {genericType} : struct, {interfaceRef.Symbol.ToFullName()}")
+                    .WithDecreasedIndent();
+                p.OpenScope();
+                {
+                    p.PrintBeginLine();
+
+                    if (method.ReturnsVoid == false)
+                    {
+                        p.Print("return ");
+
+                        if (method.RefKind is (RefKind.Ref or RefKind.RefReadOnly))
+                        {
+                            p.Print("ref ");
+                        }
+                    }
+
+                    p.Print(BuildCallClause(sb, method)).PrintEndLine();
+                }
+                p.CloseScope();
+                p.PrintEndLine();
+            }
+
+            static void WriteForProperty(
+                  ref Printer p
+                , InterfaceRef interfaceRef
+                , IPropertySymbol property
+            )
+            {
+                var genericType = $"T{interfaceRef.StructName}";
+
+                if (property.GetMethod is IMethodSymbol getMethod
+                    && getMethod.RefKind == RefKind.None
+                )
+                {
+                    p.PrintLine(GENERATED_CODE).PrintLine(EXCLUDE_COVERAGE).PrintLine(AGGRESSIVE_INLINING);
+                    p.PrintLine($"private static {property.Type.ToFullName()} Internal__{property.Name}<{genericType}>(ref {genericType} instance)");
+                    p.WithIncreasedIndent()
+                        .PrintLine($"where {genericType} : struct, {interfaceRef.Symbol.ToFullName()}")
+                        .WithDecreasedIndent();
+                    p.OpenScope();
+                    {
+                        p.PrintLine($"return instance.{property.Name};");
+                    }
+                    p.CloseScope();
+                    p.PrintEndLine();
+                }
+
+                if (property.SetMethod != null)
+                {
+                    p.PrintLine(GENERATED_CODE).PrintLine(EXCLUDE_COVERAGE).PrintLine(AGGRESSIVE_INLINING);
+                    p.PrintLine($"private static void Internal__{property.Name}<{genericType}>(ref {genericType} instance, {property.Type.ToFullName()} value)");
+                    p.WithIncreasedIndent()
+                        .PrintLine($"where {genericType} : struct, {interfaceRef.Symbol.ToFullName()}")
+                        .WithDecreasedIndent();
+                    p.OpenScope();
+                    {
+                        p.PrintLine($"instance.{property.Name} = value;");
+                    }
+                    p.CloseScope();
+                    p.PrintEndLine();
+                }
+            }
+
+            static void WriteParameters(
+                  ref Printer p
+                , IMethodSymbol method
+                , bool outToRef = false
+            )
+            {
+                var parameters = method.Parameters;
+                var lastParamIndex = parameters.Length - 1;
+
+                if (lastParamIndex >= 0)
+                {
+                    p.Print(", ");
+                }
+
+                for (var i = 0; i < parameters.Length; i++)
+                {
+                    var param = parameters[i];
+
+                    p.Print(GetRefKind(param.RefKind, outToRef))
+                        .Print(param.Type.ToFullName())
+                        .Print(" ")
+                        .Print(param.Name);
+
+                    if (i < lastParamIndex)
+                    {
+                        p.Print(", ");
+                    }
+                }
+            }
+
+            static string BuildCallClause(
+                  StringBuilder sb
+                , IMethodSymbol method
+            )
+            {
+                var parameters = method.Parameters;
+                var lastParamIndex = parameters.Length - 1;
+
+                sb.Clear();
+                sb.Append($"instance.{method.Name}(");
+
+                for (var i = 0; i < parameters.Length; i++)
+                {
+                    var param = parameters[i];
+                    sb.Append($"{GetRefKind(param.RefKind)}{param.Name}");
+
+                    if (i < lastParamIndex)
+                    {
+                        sb.Append(", ");
+                    }
+                }
+
+                sb.Append(");");
+                return sb.ToString();
+            }
+        }
+
         private static void WriteMembers(
               ref Printer p
             , InterfaceRef interfaceRef
@@ -179,6 +354,7 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
                 {
                     WriteMethod(
                           ref p
+                        , interfaceRef
                         , structRefs
                         , structRefCount
                         , method
@@ -205,6 +381,7 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
 
         private static void WriteMethod(
               ref Printer p
+            , InterfaceRef interfaceRef
             , IEnumerable<StructRef> structRefs
             , ulong structRefCount
             , IMethodSymbol method
@@ -222,7 +399,7 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
             }
             p.PrintEndLine(")");
 
-            var callClause = BuildCallClause(sb, method);
+            var callClause = BuildCallClause(sb, interfaceRef, method);
             var assignOutParams = BuildAssignOutParams(sb, method);
 
             WriteMethodBody(ref p, structRefs, structRefCount, method, false, callClause, assignOutParams);
@@ -252,6 +429,7 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
 
             static string BuildCallClause(
                   StringBuilder sb
+                , InterfaceRef interfaceRef
                 , IMethodSymbol method
             )
             {
@@ -259,7 +437,22 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
                 var lastParamIndex = parameters.Length - 1;
 
                 sb.Clear();
-                sb.Append($"instance.{method.Name}(");
+
+                if (method.RefKind is (RefKind.Ref or RefKind.RefReadOnly))
+                {
+                    sb.Append($"instance.{method.Name}(");
+                }
+                else
+                {
+                    sb.Append(interfaceRef.StructName)
+                        .Append(".Internal__").Append(method.Name)
+                        .Append("(ref instance");
+
+                    if (parameters.Length > 0)
+                    {
+                        sb.Append(", ");
+                    }
+                }
 
                 for (var i = 0; i < parameters.Length; i++)
                 {
@@ -333,8 +526,19 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
             p.PrintLine($"public {GetReturnRefKind(property.RefKind)}{property.Type.ToFullName()} {property.Name}");
             p.OpenScope();
             {
-                if (property.GetMethod != null)
+                if (property.GetMethod is IMethodSymbol getMethod)
                 {
+                    string callClause;
+
+                    if (getMethod.RefKind == RefKind.None)
+                    {
+                        callClause = $"{interfaceRef.StructName}.Internal__{property.Name}(ref instance);";
+                    }
+                    else
+                    {
+                        callClause = $"instance.{property.Name};";
+                    }
+
                     WriteAttributes(ref p, property.GetMethod, token);
 
                     p.PrintLine("get");
@@ -344,7 +548,7 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
                         , structRefCount
                         , property.GetMethod
                         , true
-                        , $"instance.{property.Name};"
+                        , callClause
                         , ""
                     );
                 }
@@ -360,7 +564,7 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
                         , structRefCount
                         , property.SetMethod
                         , true
-                        , $"instance.{property.Name} = value;"
+                        , $"{interfaceRef.StructName}.Internal__{property.Name}(ref instance, value);"
                         , ""
                     );
                 }
@@ -463,6 +667,8 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
                             {
                                 p.PrintLine("this = instance;");
                             }
+
+                            p.PrintEndLine();
 
                             if (method.ReturnsVoid)
                             {

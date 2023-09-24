@@ -187,12 +187,29 @@ namespace PolymorphicStructTests
         public void Invoke() { }
     }
 
+    public static class OutTestAPI
+    {
+        public static int Value = 10;
+    }
+
     [PolymorphicStructInterface]
     public interface IOutTest
     {
-        int Invoke(out int value);
+        public int Value { get => default; }
+
+        public int Invoke(out int value)
+        {
+            value = default;
+            return default;
+        }
 
         int Invoke();
+
+        public ref int RefOut(ref int a)
+        {
+            //x = default;
+            return ref OutTestAPI.Value;
+        }
     }
 
     partial struct OutTest
@@ -203,15 +220,15 @@ namespace PolymorphicStructTests
     [PolymorphicStruct]
     public partial struct OutTestA : IOutTest
     {
-        public int Invoke(out int value)
-        {
-            value = default;
-            return default;
-        }
-
         public int Invoke()
         {
             return default;
+        }
+
+        public ref int RefOut(ref int a)
+        {
+            //x = default;
+            return ref OutTestAPI.Value;
         }
     }
 }

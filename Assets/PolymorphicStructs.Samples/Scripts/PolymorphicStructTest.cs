@@ -153,6 +153,8 @@ namespace PolymorphicStructs.Samples
     [PolymorphicStructInterface]
     public interface IAnimationEvent
     {
+        public int Value { get => default; }
+
         void Invoke();
     }
 
