@@ -173,4 +173,11 @@ namespace PolymorphicStructs.Samples
     {
         public void Invoke() { }
     }
+
+    [PolymorphicStructInterface]
+    public interface IEmpty
+    {
+    }
+
+    partial struct Empty { }
 }

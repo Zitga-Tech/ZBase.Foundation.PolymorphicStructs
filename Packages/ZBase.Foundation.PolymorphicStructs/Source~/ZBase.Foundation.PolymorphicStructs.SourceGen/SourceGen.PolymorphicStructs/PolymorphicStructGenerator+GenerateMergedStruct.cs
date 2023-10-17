@@ -100,6 +100,7 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
             p.OpenScope();
             {
                 WriteFields(ref p, mergedFieldRefList);
+                WriteIsDefined(ref p, interfaceRef, structRefs, structRefCount);
                 WriteIsType(ref p, interfaceRef, structRefs, structRefCount);
                 WriteMembers(ref p, interfaceRef, structRefs, structRefCount, sb, token);
                 WriteGenericMembers(ref p, interfaceRef, structRefs, structRefCount, sb, token);
@@ -132,6 +133,39 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
                     .PrintEndLine(";");
             }
 
+            p.PrintEndLine();
+        }
+
+        private static void WriteIsDefined(
+              ref Printer p
+            , InterfaceRef interfaceRef
+            , IEnumerable<StructRef> structRefs
+            , ulong structRefCount
+        )
+        {
+            p.PrintLine(GENERATED_CODE).PrintLine(EXCLUDE_COVERAGE);
+            p.PrintLine("public readonly bool IsDefined");
+            p.OpenScope();
+            {
+                p.PrintLine("get");
+                p.OpenScope();
+                {
+                    p.PrintLine("return this.CurrentTypeId switch {");
+                    p = p.IncreasedIndent();
+                    {
+                        foreach (var structRef in structRefs)
+                        {
+                            p.PrintLine($"TypeId.{structRef.Symbol.ToValidIdentifier()} => true,");
+                        }
+
+                        p.PrintLine("_ => false,");
+                    }
+                    p = p.DecreasedIndent();
+                    p.PrintLine("};");
+                }
+                p.CloseScope();
+            }
+            p.CloseScope();
             p.PrintEndLine();
         }
 

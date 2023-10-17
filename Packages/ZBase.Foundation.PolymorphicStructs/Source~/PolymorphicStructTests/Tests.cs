@@ -231,6 +231,13 @@ namespace PolymorphicStructTests
             return ref OutTestAPI.Value;
         }
     }
+
+    [PolymorphicStructInterface]
+    public interface IEmpty
+    {
+    }
+
+    partial struct Empty { }
 }
 
 namespace CustomAttributes
