@@ -106,7 +106,7 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
                 WriteMembers(ref p, interfaceRef, structRefs, structRefCount, sb, token);
                 WriteGenericMembers(ref p, interfaceRef, structRefs, structRefCount, sb, token);
                 WriteGetTypeIdMethods(ref p, interfaceRef, structRefs);
-                WriteEnum(ref p, structRefs, structRefCount);
+                WriteEnum(ref p, interfaceRef, structRefs, structRefCount);
                 WriteGenericTypeIdStruct(ref p, interfaceRef, structRefs, structRefCount);
             }
             p.CloseScope();
@@ -156,7 +156,9 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
                     {
                         foreach (var structRef in structRefs)
                         {
-                            p.PrintLine($"TypeId.{structRef.Symbol.ToValidIdentifier()} => true,");
+                            var structSymbol = structRef.Symbol;
+                            var typeId = interfaceRef.Verbose ? structSymbol.ToValidIdentifier() : structSymbol.Name;
+                            p.PrintLine($"TypeId.{typeId} => true,");
                         }
 
                         p.PrintLine("_ => false,");
@@ -437,7 +439,16 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
             var callClause = BuildCallClause(sb, interfaceRef, method);
             var assignOutParams = BuildAssignOutParams(sb, method);
 
-            WriteMethodBody(ref p, structRefs, structRefCount, method, false, callClause, assignOutParams);
+            WriteMethodBody(
+                  ref p
+                , interfaceRef
+                , structRefs
+                , structRefCount
+                , method
+                , false
+                , callClause
+                , assignOutParams
+            );
 
             p.PrintEndLine();
 
@@ -579,6 +590,7 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
                     p.PrintLine("get");
                     WriteMethodBody(
                           ref p
+                        , interfaceRef
                         , structRefs
                         , structRefCount
                         , property.GetMethod
@@ -595,6 +607,7 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
                     p.PrintLine("set");
                     WriteMethodBody(
                           ref p
+                        , interfaceRef
                         , structRefs
                         , structRefCount
                         , property.SetMethod
@@ -627,6 +640,7 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
 
         private static void WriteMethodBody(
               ref Printer p
+            , InterfaceRef interfaceRef
             , IEnumerable<StructRef> structRefs
             , ulong structRefCount
             , IMethodSymbol method
@@ -674,7 +688,10 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
                 {
                     foreach (var structRef in structRefs)
                     {
-                        p.PrintLine($"case TypeId.{structRef.Symbol.ToValidIdentifier()}:");
+                        var structSymbol = structRef.Symbol;
+                        var typeId = interfaceRef.Verbose ? structSymbol.ToValidIdentifier() : structSymbol.Name;
+
+                        p.PrintLine($"case TypeId.{typeId}:");
                         p.OpenScope();
                         {
                             p.PrintLine($"{structRef.Symbol.ToFullName()} instance = this;");
@@ -840,11 +857,14 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
 
             foreach (var structRef in structRefs)
             {
+                var structSymbol = structRef.Symbol;
+                var typeId = interfaceRef.Verbose ? structSymbol.ToValidIdentifier() : structSymbol.Name;
+
                 p.PrintLine(AGGRESSIVE_INLINING).PrintLine(GENERATED_CODE).PrintLine(EXCLUDE_COVERAGE);
                 p.PrintLine($"public static TypeId GetTypeId(in {structRef.Symbol.ToFullName()} _)");
                 p.OpenScope();
                 {
-                    p.PrintLine($"return TypeId.{structRef.Symbol.ToValidIdentifier()};");
+                    p.PrintLine($"return TypeId.{typeId};");
                 }
                 p.CloseScope();
                 p.PrintEndLine();
@@ -853,6 +873,7 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
 
         private static void WriteEnum(
               ref Printer p
+            , InterfaceRef interfaceRef
             , IEnumerable<StructRef> structRefs
             , ulong structRefCount
         )
@@ -884,9 +905,10 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
 
                 foreach (var structRef in structRefs)
                 {
-                    p.PrintBeginLine()
-                        .Print(structRef.Symbol.ToValidIdentifier())
-                        .PrintEndLine(",");
+                    var structSymbol = structRef.Symbol;
+                    var typeId = interfaceRef.Verbose ? structSymbol.ToValidIdentifier() : structSymbol.Name;
+
+                    p.PrintBeginLine().Print(typeId).PrintEndLine(",");
                 }
             }
             p.CloseScope();
@@ -908,7 +930,9 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
                 {
                     foreach (var structRef in structRefs)
                     {
-                        p.PrintLine($"TypeId<{structRef.Symbol.ToFullName()}>.Value = TypeId.{structRef.Symbol.ToValidIdentifier()};");
+                        var structSymbol = structRef.Symbol;
+                        var typeId = interfaceRef.Verbose ? structSymbol.ToValidIdentifier() : structSymbol.Name;
+                        p.PrintLine($"TypeId<{structRef.Symbol.ToFullName()}>.Value = TypeId.{typeId};");
                     }
                 }
                 p.CloseScope();

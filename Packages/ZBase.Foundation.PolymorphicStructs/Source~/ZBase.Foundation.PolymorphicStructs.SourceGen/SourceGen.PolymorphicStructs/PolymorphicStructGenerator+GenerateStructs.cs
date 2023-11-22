@@ -172,6 +172,8 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
         {
             var mergedStructName = $"{interfaceRef.FullContainingNameWithDot}{interfaceRef.StructName}";
             var @in = structRef.Symbol.IsReadOnly ? "in " : "";
+            var structSymbol = structRef.Symbol;
+            var typeId = interfaceRef.Verbose ? structSymbol.ToValidIdentifier() : structSymbol.Name;
 
             p.PrintLine(AGGRESSIVE_INLINING).PrintLine(GENERATED_CODE).PrintLine(EXCLUDE_COVERAGE);
             p.PrintLine($"public static implicit operator {mergedStructName}({@in}{structRef.Syntax.Identifier.Text} value)");
@@ -182,7 +184,7 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
                 p.PrintLine($"return new {mergedStructName} {{");
                 p = p.IncreasedIndent();
                 {
-                    p.PrintLine($"CurrentTypeId = {mergedStructName}.TypeId.{structRef.Symbol.ToValidIdentifier()},");
+                    p.PrintLine($"CurrentTypeId = {mergedStructName}.TypeId.{typeId},");
 
                     foreach (var field in fields)
                     {

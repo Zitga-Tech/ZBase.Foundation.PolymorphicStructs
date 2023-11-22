@@ -63,27 +63,36 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
                 && syntax.HasAttributeCandidate("ZBase.Foundation.PolymorphicStructs", "PolymorphicStructInterface");
         }
 
-        public static (InterfaceDeclarationSyntax syntax, INamedTypeSymbol symbol) GetInterfaceRefSemanticMatch(
-              GeneratorSyntaxContext context
-            , CancellationToken token
-        )
+        public static (InterfaceDeclarationSyntax syntax, INamedTypeSymbol symbol, bool verbose)
+            GetInterfaceRefSemanticMatch(GeneratorSyntaxContext context, CancellationToken token)
         {
             if (context.SemanticModel.Compilation.IsValidCompilation() == false
                 || context.Node is not InterfaceDeclarationSyntax syntax
             )
             {
-                return (null, null);
+                return (null, null, default);
             }
 
             var semanticModel = context.SemanticModel;
             var symbol = semanticModel.GetDeclaredSymbol(syntax, token);
+            var attribute = symbol.GetAttribute(POLY_INTERFACE_ATTRIBUTE);
 
-            if (symbol.HasAttribute(POLY_INTERFACE_ATTRIBUTE))
+            if (attribute == null)
             {
-                return (syntax, symbol);
+                return (null, null, default);
             }
 
-            return (null, null);
+            var verbose = false;
+
+            foreach (var arg in attribute.NamedArguments)
+            {
+                if (arg.Key == "Verbose" && arg.Value.Value is bool value)
+                {
+                    verbose = value;
+                }
+            }
+
+            return (syntax, symbol, verbose);
         }
 
         private static bool IsValidStructSyntax(SyntaxNode node, CancellationToken _)
@@ -132,7 +141,7 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
         private static void GenerateOutput(
               SourceProductionContext context
             , Compilation compilation
-            , ImmutableArray<(InterfaceDeclarationSyntax syntax, INamedTypeSymbol symbol)> interfaces
+            , ImmutableArray<(InterfaceDeclarationSyntax syntax, INamedTypeSymbol symbol, bool verbose)> interfaces
             , ImmutableArray<(StructDeclarationSyntax syntax, INamedTypeSymbol symbol)> structs
             , string projectPath
             , bool outputSourceGenFiles
@@ -199,7 +208,7 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
 
         private static void BuildMaps(
               SourceProductionContext context
-            , ImmutableArray<(InterfaceDeclarationSyntax syntax, INamedTypeSymbol symbol)> interfaces
+            , ImmutableArray<(InterfaceDeclarationSyntax syntax, INamedTypeSymbol symbol, bool verbose)> interfaces
             , ImmutableArray<(StructDeclarationSyntax syntax, INamedTypeSymbol symbol)> structs
             , out InterfaceMap interfaceMap
             , out InterfaceToStructMap interfaceToStructMap
@@ -209,11 +218,11 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
         {
             interfaceMap = new(SymbolEqualityComparer.Default);
 
-            foreach (var (syntax, symbol) in interfaces)
+            foreach (var (syntax, symbol, verbose) in interfaces)
             {
                 if (interfaceMap.ContainsKey(symbol) == false)
                 {
-                    interfaceMap.Add(symbol, new InterfaceRef(syntax, symbol));
+                    interfaceMap.Add(symbol, new InterfaceRef(syntax, symbol, verbose));
                 }
             }
 

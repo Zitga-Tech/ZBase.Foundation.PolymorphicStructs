@@ -13,6 +13,8 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
 
         public INamedTypeSymbol Symbol { get; }
 
+        public bool Verbose { get; }
+
         public ImmutableArray<ISymbol> Members { get; private set; }
 
         public string FullContainingNameWithDot { get; private set; }
@@ -24,10 +26,12 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
         public InterfaceRef(
               InterfaceDeclarationSyntax syntax
             , INamedTypeSymbol symbol
+            , bool verbose
         )
         {
             this.Syntax = syntax;
             this.Symbol = symbol;
+            this.Verbose = verbose;
 
             InitFullContainingName();
             InitAccessKeyword();

@@ -47,7 +47,7 @@ namespace PolymorphicStructTests
         public readonly float DeltaTime;
     }
 
-    [PolymorphicStructInterface]
+    [PolymorphicStructInterface(Verbose = true)]
     public interface IMyState
     {
         public void OnStateEnter(ref StateUpdateData_RW refData, in StateUpdateData_RO inData);
