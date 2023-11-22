@@ -17,6 +17,8 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
 
         public string FullContainingNameWithDot { get; private set; }
 
+        public string AccessKeyword { get; private set; }
+
         public string StructName { get; private set; }
 
         public InterfaceRef(
@@ -28,6 +30,7 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
             this.Symbol = symbol;
 
             InitFullContainingName();
+            InitAccessKeyword();
             InitStructName();
             InitMembers();
         }
@@ -41,6 +44,36 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
             sb.Remove(startIndex, name.Length);
 
             FullContainingNameWithDot = sb.ToString();
+        }
+
+        private void InitAccessKeyword()
+        {
+            switch (Symbol.DeclaredAccessibility)
+            {
+                case Accessibility.Private:
+                    AccessKeyword = "private";
+                    return;
+
+                case Accessibility.ProtectedAndInternal:
+                    AccessKeyword = "private protected";
+                    return;
+
+                case Accessibility.Protected:
+                    AccessKeyword = "protected";
+                    return;
+
+                case Accessibility.Internal:
+                    AccessKeyword = "internal";
+                    return;
+
+                case Accessibility.ProtectedOrInternal:
+                    AccessKeyword = "protected internal";
+                    return;
+
+                default:
+                    AccessKeyword = "public";
+                    return;
+            }
         }
 
         private void InitStructName()

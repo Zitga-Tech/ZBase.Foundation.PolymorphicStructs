@@ -4,7 +4,7 @@ using ZBase.Foundation.PolymorphicStructs;
 
 namespace PolymorphicStructTests
 {
-    public class Program
+    public partial class Program
     {
         public static void Main()
         {
@@ -12,6 +12,14 @@ namespace PolymorphicStructTests
             Console.WriteLine(MyState.GetTypeId<StateA>());
             Console.WriteLine(MyState.GetTypeId<StateB>());
         }
+
+        [PolymorphicStructInterface]
+        private interface IMyTask
+        {
+            void Execute();
+        }
+
+        partial struct MyTask { }
     }
 
     [Serializable]

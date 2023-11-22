@@ -4,11 +4,19 @@ using ZBase.Foundation.PolymorphicStructs;
 
 namespace PolymorphicStructs.Samples
 {
-    public class PolymorphicStructTests : MonoBehaviour
+    public partial class PolymorphicStructTests : MonoBehaviour
     {
         private void Start()
         {
         }
+
+        [PolymorphicStructInterface]
+        private interface IMyTask
+        {
+            void Execute();
+        }
+
+        partial struct MyTask { }
     }
 
     [Serializable]

@@ -94,7 +94,8 @@ namespace ZBase.Foundation.PolymorphicStructs.PolymorphicStructSourceGen
             p.PrintLine(GENERATED_CODE);
             p.PrintLine(EXCLUDE_COVERAGE);
             p.PrintBeginLine();
-            p.Print($"public partial struct {interfaceRef.StructName}")
+            p.Print(interfaceRef.AccessKeyword)
+                .Print($" partial struct {interfaceRef.StructName}")
                 .Print($" : {interfaceRef.Symbol.ToFullName()}")
                 .PrintEndLine();
             p.OpenScope();
